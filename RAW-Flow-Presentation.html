@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAW-Flow 论文解读 | AAAI 2026 Oral</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --primary: #6366f1;
+    --primary-light: #818cf8;
+    --primary-dark: #4f46e5;
+    --accent: #f59e0b;
+    --accent-light: #fbbf24;
+    --bg-dark: #0f172a;
+    --bg-card: #1e293b;
+    --bg-card-hover: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border: #334155;
+    --success: #10b981;
+    --danger: #ef4444;
+    --info: #3b82f6;
+    --gradient-1: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+    --gradient-2: linear-gradient(135deg, #f59e0b, #f97316);
+    --gradient-3: linear-gradient(135deg, #10b981, #06b6d4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* === Navigation === */
+  .nav-sidebar {
+    position: fixed;
+    left: 0; top: 0;
+    width: 260px;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .nav-sidebar.open { transform: translateX(0); }
+
+  .nav-header {
+    padding: 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-light);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .nav-list {
+    list-style: none;
+    padding: 12px 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .nav-list li {
+    padding: 10px 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav-list li:hover {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--text-primary);
+  }
+
+  .nav-list li.active {
+    color: var(--primary-light);
+    border-left-color: var(--primary);
+    background: rgba(99, 102, 241, 0.08);
+  }
+
+  .nav-list li .nav-num {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 22px;
+  }
+
+  .nav-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+  }
+
+  .nav-overlay.show { display: block; }
+
+  /* === Top Bar === */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 90;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .menu-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .menu-btn:hover { background: var(--bg-card); border-color: var(--primary); }
+
+  .topbar-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .topbar-title span { color: var(--primary-light); font-weight: 600; }
+
+  .slide-counter {
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .nav-btn:hover { border-color: var(--primary); background: rgba(99, 102, 241, 0.1); }
+
+  /* === Progress Bar === */
+  .progress-bar {
+    position: fixed;
+    top: 56px;
+    left: 0; right: 0;
+    height: 3px;
+    background: var(--bg-card);
+    z-index: 89;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--gradient-1);
+    transition: width 0.4s ease;
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* === Slides Container === */
+  .slides-container {
+    position: fixed;
+    top: 59px;
+    left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    padding: 40px 60px;
+    display: none;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .slide::-webkit-scrollbar { width: 6px; }
+  .slide::-webkit-scrollbar-track { background: transparent; }
+  .slide::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .slide.active {
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.5s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* === Slide Content Styles === */
+  .slide-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .slide-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+
+  .badge-primary { background: rgba(99, 102, 241, 0.15); color: var(--primary-light); border: 1px solid rgba(99, 102, 241, 0.3); }
+  .badge-accent { background: rgba(245, 158, 11, 0.15); color: var(--accent-light); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+  .badge-info { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+  .slide h1 {
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .slide h2 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text-primary);
+  }
+
+  .slide h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--primary-light);
+  }
+
+  .subtitle {
+    font-size: 18px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+
+  .authors {
+    font-size: 15px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .authors strong { color: var(--text-secondary); }
+
+  .venue-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gradient-2);
+    color: #000;
+    padding: 8px 20px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 700;
+    margin-top: 16px;
+  }
+
+  /* Cards */
+  .card-grid {
+    display: grid;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .card-grid-2 { grid-template-columns: 1fr 1fr; }
+  .card-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.3s;
+    cursor: default;
+  }
+
+  .card:hover {
+    border-color: var(--primary);
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.1);
+  }
+
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 14px;
+  }
+
+  .card h3 { margin-bottom: 10px; font-size: 16px; }
+  .card p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+  /* Table */
+  .table-wrapper {
+    overflow-x: auto;
+    margin: 16px 0;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    background: rgba(99, 102, 241, 0.1);
+    padding: 12px 14px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--primary-light);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 14px;
+    text-align: center;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  tr:hover td { background: rgba(99, 102, 241, 0.04); }
+
+  td.best { color: var(--accent); font-weight: 700; }
+  td.second { color: #60a5fa; text-decoration: underline; }
+  td.method-name { text-align: left; font-weight: 600; color: var(--text-primary); }
+  td.method-name.ours { color: var(--accent); }
+
+  /* Equation */
+  .equation-box {
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 12px 0;
+    font-family: 'Fira Code', monospace;
+    font-size: 15px;
+    color: var(--primary-light);
+    text-align: center;
+    line-height: 2;
+  }
+
+  /* Flow Diagram */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 24px 0;
+    flex-wrap: wrap;
+  }
+
+  .flow-box {
+    padding: 14px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 120px;
+    transition: all 0.3s;
+  }
+
+  .flow-box:hover { transform: scale(1.05); }
+
+  .flow-box.input { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #60a5fa; }
+  .flow-box.process { background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: var(--primary-light); }
+  .flow-box.output { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; }
+  .flow-box.special { background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--accent-light); }
+
+  .flow-arrow {
+    color: var(--text-muted);
+    font-size: 20px;
+    font-weight: 300;
+  }
+
+  /* Highlight list */
+  .highlight-list {
+    list-style: none;
+    margin: 12px 0;
+  }
+
+  .highlight-list li {
+    padding: 12px 16px;
+    margin: 8px 0;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border-left: 3px solid var(--primary);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+  }
+
+  .highlight-list li:hover {
+    background: var(--bg-card-hover);
+    border-left-color: var(--accent);
+  }
+
+  .highlight-list li strong { color: var(--text-primary); }
+
+  /* Comparison bar chart */
+  .bar-chart {
+    margin: 16px 0;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    margin: 6px 0;
+    gap: 12px;
+  }
+
+  .bar-label {
+    width: 100px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 28px;
+    background: rgba(51, 65, 85, 0.3);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    width: 0;
+  }
+
+  .bar-fill.animated { /* set via JS */ }
+
+  .bar-fill.ours-bar { background: var(--gradient-1); }
+  .bar-fill.sota-bar { background: rgba(100, 116, 139, 0.6); }
+  .bar-fill.diff-bar { background: rgba(239, 68, 68, 0.4); }
+
+  .bar-value {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    width: 60px;
+    flex-shrink: 0;
+  }
+
+  /* Interactive Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin: 16px 0;
+    background: var(--bg-card);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    padding: 8px 20px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.active { background: var(--primary); color: #fff; }
+
+  .tab-content { display: none; animation: slideIn 0.3s ease; }
+  .tab-content.active { display: block; }
+
+  /* Metric highlight */
+  .metric-row {
+    display: flex;
+    gap: 16px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+
+  .metric-card {
+    flex: 1;
+    min-width: 140px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .metric-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+
+  .metric-value {
+    font-size: 32px;
+    font-weight: 800;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .metric-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metric-delta {
+    font-size: 13px;
+    color: var(--success);
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* Section divider */
+  .section-divider {
+    width: 60px;
+    height: 3px;
+    background: var(--gradient-1);
+    border-radius: 2px;
+    margin: 8px 0 20px 0;
+  }
+
+  /* Timeline */
+  .timeline {
+    position: relative;
+    margin: 20px 0;
+    padding-left: 30px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 24px;
+    padding-left: 20px;
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -26px;
+    top: 6px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-dark);
+  }
+
+  .timeline-item h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+
+  .timeline-item p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Architecture SVG */
+  .arch-svg-container {
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .arch-svg-container svg {
+    max-width: 100%;
+  }
+
+  /* Keyboard hint */
+  .keyboard-hint {
+    position: fixed;
+    bottom: 16px;
+    right: 24px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    z-index: 80;
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 28px;
+  }
+
+  .hint-text { font-size: 11px; color: var(--text-muted); }
+
+  /* Cover specific */
+  .cover-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 70vh;
+  }
+
+  .cover-center h1 { font-size: 48px; max-width: 900px; }
+
+  /* Two columns */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .slide { padding: 24px 20px; }
+    .slide h1 { font-size: 28px; }
+    .slide h2 { font-size: 24px; }
+    .card-grid-2, .card-grid-3 { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .topbar-title { display: none; }
+    .cover-center h1 { font-size: 32px; }
+  }
+
+  /* Animations for interactive elements */
+  .fade-in { opacity: 0; transform: translateY(15px); transition: all 0.5s ease; }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+  .stagger-1 { transition-delay: 0.1s; }
+  .stagger-2 { transition-delay: 0.2s; }
+  .stagger-3 { transition-delay: 0.3s; }
+  .stagger-4 { transition-delay: 0.4s; }
+
+  /* Interactive pipeline animation */
+  .pipeline-step {
+    opacity: 0.3;
+    transition: all 0.4s ease;
+    cursor: pointer;
+  }
+
+  .pipeline-step.highlighted { opacity: 1; }
+  .pipeline-step:hover { opacity: 1; }
+
+  .step-detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+    padding: 0 16px;
+  }
+
+  .step-detail.expanded {
+    max-height: 300px;
+    padding: 16px;
+  }
+
+  /* Tooltip */
+  .tooltip-trigger {
+    position: relative;
+    border-bottom: 1px dashed var(--primary-light);
+    cursor: help;
+  }
+
+  .tooltip-trigger .tooltip-text {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    transition: all 0.2s;
+    z-index: 10;
+    margin-bottom: 6px;
+  }
+
+  .tooltip-trigger:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <button class="menu-btn" onclick="toggleNav()" title="Toggle menu (M)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <div class="topbar-title"><span>RAW-Flow</span> &nbsp;Paper Interpretation</div>
+  </div>
+  <div class="slide-counter" id="slideCounter">01 / 12</div>
+  <div class="topbar-right">
+    <button class="nav-btn" onclick="prevSlide()" title="Previous (←)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Prev
+    </button>
+    <button class="nav-btn" onclick="nextSlide()" title="Next (→)">
+      Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Progress Bar -->
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+<!-- Navigation Sidebar -->
+<div class="nav-overlay" id="navOverlay" onclick="toggleNav()"></div>
+<nav class="nav-sidebar" id="navSidebar">
+  <div class="nav-header"><h2>Slide Navigator</h2></div>
+  <ul class="nav-list" id="navList"></ul>
+</nav>
+
+<!-- Slides -->
+<div class="slides-container">
+
+  <!-- Slide 1: Cover -->
+  <div class="slide active" data-title="Cover">
+    <div class="cover-center">
+      <div class="slide-badge badge-accent">AAAI 2026 Oral</div>
+      <h1>RAW-Flow</h1>
+      <p class="subtitle" style="max-width:800px">Advancing RGB-to-RAW Image Reconstruction with<br>Deterministic Latent Flow Matching</p>
+      <div class="section-divider" style="margin:16px auto"></div>
+      <p class="authors">
+        <strong>Zhen Liu<sup>*</sup>, Diedong Feng<sup>*</sup></strong>, Hai Jiang, Liaoyuan Zeng, Hao Wang, Chaoyu Feng, Lei Lei, Bing Zeng, <strong>Shuaicheng Liu<sup>†</sup></strong>
+      </p>
+      <p class="authors" style="font-size:13px; margin-top:8px">
+        University of Electronic Science and Technology of China &nbsp;|&nbsp; Megvii Research &nbsp;|&nbsp; Shanghai AI Laboratory
+      </p>
+      <div class="venue-tag" style="margin-top:24px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        AAAI 2026 Oral Paper
+      </div>
+      <p style="margin-top:20px; font-size:13px; color:var(--text-muted)">arXiv: 2601.20364 &nbsp;|&nbsp; Code: github.com/liuzhen03/RAW-Flow</p>
+    </div>
+  </div>
+
+  <!-- Slide 2: Background & Motivation -->
+  <div class="slide" data-title="Background & Motivation">
+    <div class="slide-inner">
+      <div class="slide-badge badge-info">Background</div>
+      <h2>What is RGB-to-RAW Reconstruction?</h2>
+      <div class="section-divider"></div>
+
+      <div class="two-col">
+        <div>
+          <h3>ISP Pipeline (Forward)</h3>
+          <div class="flow-diagram" style="flex-direction:column; align-items:flex-start;">
+            <div class="flow-box input" style="width:100%">RAW Sensor Data (14-bit, linear)</div>
+            <div class="flow-arrow" style="text-align:center; width:100%">↓ Demosaic → White Balance → Tone Mapping → Gamma</div>
+            <div class="flow-box output" style="width:100%">sRGB Image (8-bit, compressed)</div>
+          </div>
+
+          <h3 style="margin-top:20px">Inverse ISP (Our Task)</h3>
+          <div class="flow-diagram" style="flex-direction:column; align-items:flex-start;">
+            <div class="flow-box output" style="width:100%">sRGB Image</div>
+            <div class="flow-arrow" style="text-align:center; width:100%">↓ Ill-posed inverse problem</div>
+            <div class="flow-box input" style="width:100%">Reconstructed RAW Data</div>
+          </div>
+        </div>
+
+        <div>
+          <h3>Why RAW Matters</h3>
+          <ul class="highlight-list">
+            <li><strong>Higher Bit-Depth:</strong> RAW retains 12-14 bit linear sensor data vs 8-bit sRGB</li>
+            <li><strong>Better for CV Tasks:</strong> Object detection, denoising, super-resolution all benefit</li>
+            <li><strong>Rich Scene Information:</strong> Unprocessed data preserves more dynamic range</li>
+          </ul>
+
+          <h3 style="margin-top:20px">Key Challenge</h3>
+          <ul class="highlight-list">
+            <li><strong>Ill-posed Nature:</strong> Multiple RAW images can produce the same RGB output</li>
+            <li><strong>Information Loss:</strong> Quantization and clipping in ISP pipeline are irreversible</li>
+            <li><strong>Cost:</strong> Collecting large-scale RAW datasets is expensive</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 3: Existing Methods & Limitations -->
+  <div class="slide" data-title="Existing Methods & Limits">
+    <div class="slide-inner">
+      <div class="slide-badge badge-accent">Motivation</div>
+      <h2>Limitations of Existing Approaches</h2>
+      <div class="section-divider"></div>
+
+      <div class="card-grid card-grid-2">
+        <div class="card">
+          <div class="card-icon" style="background:rgba(59,130,246,0.15); color:#60a5fa">1</div>
+          <h3>ISP Prior-based Methods</h3>
+          <p>E.g., UPI, CycleISP, CycleR2R</p>
+          <ul class="highlight-list" style="margin-top:12px">
+            <li>Decompose ISP and invert each stage</li>
+            <li><strong>Problem:</strong> Cumulative errors from stage-wise modeling</li>
+            <li><strong>Problem:</strong> Require metadata (exposure, WB) often unavailable</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background:rgba(16,185,129,0.15); color:#34d399">2</div>
+          <h3>End-to-End Regression Methods</h3>
+          <p>E.g., InvISP, ReRAW</p>
+          <ul class="highlight-list" style="margin-top:12px">
+            <li>Direct neural network mapping RGB→RAW</li>
+            <li><strong>Problem:</strong> Detail inconsistency and color deviation</li>
+            <li><strong>Problem:</strong> Poor generalization across cameras</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background:rgba(239,68,68,0.15); color:#f87171">3</div>
+          <h3>Diffusion-based Methods</h3>
+          <p>E.g., DDPM, RAW-Diff</p>
+          <ul class="highlight-list" style="margin-top:12px">
+            <li>Generative approach with strong expressiveness</li>
+            <li><strong>Problem:</strong> Stochastic noise causes structural distortions</li>
+            <li><strong>Problem:</strong> Hundreds of denoising steps → very slow</li>
+          </ul>
+        </div>
+
+        <div class="card" style="border-color:var(--primary)">
+          <div class="card-icon" style="background:rgba(99,102,241,0.15); color:var(--primary-light)">★</div>
+          <h3>RAW-Flow (This Work)</h3>
+          <p>Deterministic Latent Flow Matching</p>
+          <ul class="highlight-list" style="margin-top:12px">
+            <li><strong>Generative yet deterministic</strong> — no stochastic noise</li>
+            <li><strong>Efficient</strong> — direct vector field supervision</li>
+            <li><strong>Accurate</strong> — faithful detail & color reconstruction</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 4: Key Contributions -->
+  <div class="slide" data-title="Key Contributions">
+    <div class="slide-inner">
+      <div class="slide-badge badge-success">Contributions</div>
+      <h2>Three Key Contributions</h2>
+      <div class="section-divider"></div>
+
+      <div class="card-grid" style="grid-template-columns: 1fr;">
+        <div class="card" style="border-left:4px solid var(--primary)">
+          <div style="display:flex; gap:20px; align-items:flex-start;">
+            <div style="font-size:36px; font-weight:800; color:var(--primary-light); flex-shrink:0; line-height:1;">01</div>
+            <div>
+              <h3>Deterministic Latent Flow Matching (DLFM)</h3>
+              <p>First to reformulate RGB-to-RAW reconstruction as a <strong>deterministic latent transport problem</strong>. Unlike diffusion models that use stochastic noise, DLFM learns a deterministic vector field via flow matching to map RGB latent features to RAW latent features. A <strong>cross-scale context guidance</strong> module injects hierarchical RGB features to enhance luminance and detail fidelity.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-left:4px solid var(--accent)">
+          <div style="display:flex; gap:20px; align-items:flex-start;">
+            <div style="font-size:36px; font-weight:800; color:var(--accent-light); flex-shrink:0; line-height:1;">02</div>
+            <div>
+              <h3>Dual-domain Latent Autoencoder (DLAE)</h3>
+              <p>A novel autoencoder architecture that <strong>jointly encodes RGB and RAW</strong> images into their respective latent spaces. A dual-domain feature alignment constraint stabilizes RAW encoder training by aligning shallow features with the more robust RGB encoder. Cross-domain feature injection improves reconstruction fidelity.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-left:4px solid var(--success)">
+          <div style="display:flex; gap:20px; align-items:flex-start;">
+            <div style="font-size:36px; font-weight:800; color:#34d399; flex-shrink:0; line-height:1;">03</div>
+            <div>
+              <h3>State-of-the-Art Performance</h3>
+              <p>Extensive experiments on <strong>FiveK-Nikon, FiveK-Canon, and PASCALRAW</strong> benchmarks demonstrate that RAW-Flow outperforms all prior regression-based and diffusion-based methods both quantitatively (PSNR/SSIM) and qualitatively (visual comparison).</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 5: Overall Architecture -->
+  <div class="slide" data-title="Overall Architecture">
+    <div class="slide-inner">
+      <div class="slide-badge badge-primary">Architecture</div>
+      <h2>RAW-Flow Framework Overview</h2>
+      <div class="section-divider"></div>
+      <p class="subtitle" style="font-size:15px">Click on each component to learn more about its role.</p>
+
+      <!-- Interactive Architecture Diagram -->
+      <div class="flow-diagram" style="gap:8px; margin:24px 0; justify-content:center">
+        <div class="flow-box input pipeline-step highlighted" onclick="showDetail('enc')" id="step-enc" style="cursor:pointer">
+          RGB Image I<sub>rgb</sub><br><span style="font-size:11px;opacity:0.7">Input</span>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box process pipeline-step highlighted" onclick="showDetail('rgb-enc')" id="step-rgb-enc" style="cursor:pointer">
+          RGB Encoder<br>ℰ<sub>rgb</sub>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box special pipeline-step highlighted" onclick="showDetail('dlfm')" id="step-dlfm" style="cursor:pointer">
+          DLFM<br><span style="font-size:11px;opacity:0.7">Flow Matching</span>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box process pipeline-step highlighted" onclick="showDetail('raw-dec')" id="step-raw-dec" style="cursor:pointer">
+          RAW Decoder<br>𝒟<sub>raw</sub>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box output pipeline-step highlighted" onclick="showDetail('out')" id="step-out" style="cursor:pointer">
+          RAW Image Î<sub>raw</sub><br><span style="font-size:11px;opacity:0.7">Output</span>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin:8px 0; font-size:13px; color:var(--text-muted)">
+        ↑ Cross-scale Context Guidance (hierarchical RGB features injected into DLFM)
+      </div>
+
+      <!-- Detail panels -->
+      <div id="detail-enc" class="card" style="margin-top:16px; display:none; border-color:var(--info)">
+        <h3>Input RGB Image</h3>
+        <p>The framework takes an sRGB image as input. This is the readily available 8-bit image that has been processed through the camera's ISP pipeline. The goal is to reconstruct the original RAW sensor data from this compressed representation.</p>
+      </div>
+      <div id="detail-rgb-enc" class="card" style="margin-top:16px; display:none; border-color:var(--primary)">
+        <h3>RGB Encoder (ℰ<sub>rgb</sub>)</h3>
+        <p>Part of the Dual-domain Latent Autoencoder (DLAE). Encodes the RGB image into a compact latent representation <strong>z<sub>rgb</sub></strong> (= z<sub>0</sub>). This encoder is trained jointly with the RAW encoder, where shallow RGB features serve as alignment targets for the RAW encoder, promoting stable training.</p>
+      </div>
+      <div id="detail-dlfm" class="card" style="margin-top:16px; display:none; border-color:var(--accent)">
+        <h3>Deterministic Latent Flow Matching (DLFM)</h3>
+        <p>The core innovation. Learns a <strong>deterministic vector field</strong> v̂<sub>θ</sub>(z<sub>t</sub>, t) that transports the RGB latent z<sub>0</sub> to the RAW latent z<sub>1</sub> along a straight interpolation path. During inference, K=20 Euler integration steps are used. A <strong>cross-scale context guidance module</strong> injects hierarchical multi-scale RGB features into the flow estimation U-Net.</p>
+      </div>
+      <div id="detail-raw-dec" class="card" style="margin-top:16px; display:none; border-color:var(--primary)">
+        <h3>RAW Decoder (𝒟<sub>raw</sub>)</h3>
+        <p>Decodes the transported latent representation ẑ<sub>raw</sub> back to pixel space to produce the reconstructed RAW image. Receives cross-domain guidance from the RGB encoder's shallow features to reinforce structural detail and color consistency during decoding.</p>
+      </div>
+      <div id="detail-out" class="card" style="margin-top:16px; display:none; border-color:var(--success)">
+        <h3>Reconstructed RAW Image</h3>
+        <p>The final output: a high-fidelity RAW image that faithfully recovers structural details, global luminance, and color information from the input sRGB image. This can be used for downstream tasks like object detection, denoising, and super-resolution.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 6: DLAE -->
+  <div class="slide" data-title="Dual-domain Autoencoder">
+    <div class="slide-inner">
+      <div class="slide-badge badge-primary">Component 1</div>
+      <h2>Dual-domain Latent Autoencoder (DLAE)</h2>
+      <div class="section-divider"></div>
+
+      <div class="two-col">
+        <div>
+          <h3>Design Motivation</h3>
+          <p style="font-size:14px; color:var(--text-secondary); line-height:1.7; margin-bottom:16px">
+            Training a RAW autoencoder alone is <strong>significantly less stable</strong> than an RGB autoencoder. Direct pixel-wise loss fails to produce perceptually accurate RAW outputs.
+          </p>
+
+          <h3>Solution: Joint Training</h3>
+          <ul class="highlight-list">
+            <li><strong>Shared optimization:</strong> RGB and RAW autoencoders are jointly optimized with reconstruction loss (L2 + perceptual)</li>
+            <li><strong>Feature alignment loss ℒ<sub>fea</sub>:</strong> Aligns shallow features of the RAW encoder with the RGB encoder as a stable reference</li>
+            <li><strong>Cross-domain injection:</strong> Shallow RGB encoder features are injected into RAW decoder layers for structural guidance</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3>Feature Alignment Loss</h3>
+          <div class="equation-box">
+            ℒ<sub>fea</sub> = Σ<sub>l∈S</sub> ‖f<sub>l</sub><sup>raw</sup> − f<sub>l</sub><sup>rgb</sup>‖<sub>2</sub><sup>2</sup>
+          </div>
+          <p style="font-size:13px; color:var(--text-muted); margin-top:8px; text-align:center">
+            S = set of shallow layers; aligns low-level features while preserving domain-specific deep features
+          </p>
+
+          <h3 style="margin-top:24px">Key Insight</h3>
+          <div class="card" style="border-color:var(--accent)">
+            <p style="font-size:14px">Although RGB and RAW images differ in format and statistics, they capture the <strong>same underlying scene</strong>. Low-level features (edges, textures) should be similar, while deeper features encode domain-specific information and are left free to diverge.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 7: DLFM -->
+  <div class="slide" data-title="Flow Matching Module">
+    <div class="slide-inner">
+      <div class="slide-badge badge-accent">Component 2</div>
+      <h2>Deterministic Latent Flow Matching (DLFM)</h2>
+      <div class="section-divider"></div>
+
+      <div class="tabs" id="fmTabs">
+        <button class="tab-btn active" onclick="switchTab('fmTabs','fm-concept')">Core Concept</button>
+        <button class="tab-btn" onclick="switchTab('fmTabs','fm-vs')">Stochastic vs Deterministic</button>
+        <button class="tab-btn" onclick="switchTab('fmTabs','fm-inference')">Inference Process</button>
+        <button class="tab-btn" onclick="switchTab('fmTabs','fm-guidance')">Cross-scale Guidance</button>
+      </div>
+
+      <div class="tab-content active" id="fm-concept">
+        <div class="two-col" style="margin-top:16px">
+          <div>
+            <h3>Latent Transport as ODE</h3>
+            <p style="font-size:14px; color:var(--text-secondary); line-height:1.7">
+              Instead of adding noise and denoising (diffusion), DLFM defines a <strong>straight interpolation path</strong> between RGB and RAW latent representations and learns the velocity field that moves along this path.
+            </p>
+            <div class="equation-box" style="margin-top:16px">
+              z<sub>t</sub> = t · z<sub>1</sub> + (1−t) · z<sub>0</sub>, &nbsp; t ∈ [0, 1]
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); text-align:center; margin-top:6px">
+              z<sub>0</sub> = ℰ<sub>rgb</sub>(I<sub>rgb</sub>), &nbsp; z<sub>1</sub> = ℰ<sub>raw</sub>(I<sub>raw</sub>)
+            </p>
+          </div>
+          <div>
+            <h3>Training Objective</h3>
+            <div class="equation-box">
+              ℒ<sub>flow</sub> = 𝔼<sub>t∼U(0,1)</sub> ‖v̂<sub>θ</sub>(z<sub>t</sub>, t) − v(z<sub>t</sub>, t)‖²
+            </div>
+            <p style="font-size:13px; color:var(--text-muted); text-align:center; margin-top:6px">
+              Target velocity: v(z<sub>t</sub>, t) = z<sub>1</sub> − z<sub>0</sub> (constant direction)
+            </p>
+
+            <div class="card" style="margin-top:16px; border-color:var(--success)">
+              <h3 style="color:#34d399">Advantage</h3>
+              <p>Direct supervision of the vector field → no stochastic sampling, simpler training, numerically stable, efficient inference</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="fm-vs">
+        <div class="two-col" style="margin-top:16px">
+          <div class="card" style="border-color:var(--danger)">
+            <h3 style="color:#f87171">Stochastic Flow Matching</h3>
+            <div class="equation-box" style="font-size:13px">
+              z<sub>t</sub> = t · z<sub>1</sub> + (1−t) · ε, &nbsp; ε ∼ N(0, I)
+            </div>
+            <ul class="highlight-list" style="margin-top:12px">
+              <li>Initial state sampled from <strong>Gaussian noise</strong></li>
+              <li>Suitable for unconditional generation</li>
+              <li><strong>Introduces unnecessary uncertainty</strong> for deterministic mapping tasks</li>
+            </ul>
+          </div>
+
+          <div class="card" style="border-color:var(--success)">
+            <h3 style="color:#34d399">Deterministic (DLFM - Ours)</h3>
+            <div class="equation-box" style="font-size:13px">
+              z<sub>t</sub> = t · z<sub>1</sub> + (1−t) · z<sub>0</sub>
+            </div>
+            <ul class="highlight-list" style="margin-top:12px">
+              <li>Initial state = <strong>actual RGB latent</strong></li>
+              <li>Mapping is inherently one-to-one (fixed camera & scene)</li>
+              <li><strong>More stable training & precise reconstruction</strong></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="fm-inference">
+        <div style="margin-top:16px">
+          <h3>Euler Integration (K=20 steps)</h3>
+          <div class="equation-box">
+            z<sub>k+1</sub> = z<sub>k</sub> + Δt · v̂<sub>θ</sub>(z<sub>k</sub>, t<sub>k</sub>), &nbsp; z<sub>0</sub> = z<sub>rgb</sub>, &nbsp; Δt = 1/K
+          </div>
+
+          <div class="flow-diagram" style="margin-top:24px">
+            <div class="flow-box input">z<sub>0</sub> = z<sub>rgb</sub></div>
+            <div class="flow-arrow">→ +Δt·v̂ →</div>
+            <div class="flow-box process" style="opacity:0.5">z<sub>1</sub></div>
+            <div class="flow-arrow">→ +Δt·v̂ →</div>
+            <div class="flow-box process" style="opacity:0.7">z<sub>2</sub></div>
+            <div class="flow-arrow">→ ... →</div>
+            <div class="flow-box process" style="opacity:0.85">z<sub>K-1</sub></div>
+            <div class="flow-arrow">→ +Δt·v̂ →</div>
+            <div class="flow-box output">z<sub>K</sub> = ẑ<sub>raw</sub></div>
+          </div>
+
+          <p style="text-align:center; margin-top:16px; font-size:14px; color:var(--text-secondary)">
+            After K=20 steps, the final latent is decoded: <strong>Î<sub>raw</sub> = 𝒟<sub>raw</sub>(ẑ<sub>raw</sub>)</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="tab-content" id="fm-guidance">
+        <div class="two-col" style="margin-top:16px">
+          <div>
+            <h3>Cross-scale Context Guidance</h3>
+            <p style="font-size:14px; color:var(--text-secondary); line-height:1.7; margin-bottom:16px">
+              Relying solely on latent embeddings limits awareness of global luminance, color consistency, and fine local structures.
+            </p>
+            <ul class="highlight-list">
+              <li><strong>Residual blocks</strong> extract initial features from input RGB</li>
+              <li><strong>U-Net encoder</strong> captures hierarchical features {f<sub>i</sub><sup>rgb</sup>}<sub>i=1..L</sub> at multiple scales</li>
+              <li>Each scale feature provides <strong>spatially aligned guidance</strong> to the corresponding flow U-Net layer</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Conditioned Velocity Field</h3>
+            <div class="equation-box">
+              v̂<sub>θ</sub>(z<sub>t</sub>, t | {f<sub>i</sub><sup>rgb</sup>}<sub>i=1..L</sub>)
+            </div>
+            <div class="card" style="margin-top:16px; border-color:var(--primary)">
+              <h3>Why Multi-scale?</h3>
+              <p>Global semantics (coarse scales) + local textures (fine scales) together enable precise alignment between RGB and RAW latent spaces. Single-scale guidance cannot capture both.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 8: Training Strategy -->
+  <div class="slide" data-title="Training Strategy">
+    <div class="slide-inner">
+      <div class="slide-badge badge-success">Training</div>
+      <h2>Two-Stage Training Strategy</h2>
+      <div class="section-divider"></div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>Stage 1: Train DLAE (200 epochs)</h4>
+          <p>Train dual-domain autoencoders with paired RGB-RAW images.</p>
+          <div class="card" style="margin-top:12px">
+            <div class="two-col" style="gap:16px">
+              <div>
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:6px">RGB Autoencoder Loss:</p>
+                <div class="equation-box" style="font-size:13px; padding:12px">
+                  ℒ<sub>rec</sub><sup>rgb</sup> = ‖Ĩ<sub>rgb</sub> − I<sub>rgb</sub>‖² + λ₁·‖φ(Ĩ<sub>rgb</sub>) − φ(I<sub>rgb</sub>)‖²
+                </div>
+              </div>
+              <div>
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:6px">RAW Autoencoder Loss:</p>
+                <div class="equation-box" style="font-size:13px; padding:12px">
+                  ℒ<sub>raw</sub> = ℒ<sub>rec</sub><sup>raw</sup> + λ₂·ℒ<sub>fea</sub>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <h4>Stage 2: Train DLFM (100 epochs) → End-to-End Fine-tuning</h4>
+          <p>Freeze DLAE, train flow matching module, then fine-tune everything jointly.</p>
+          <div class="card" style="margin-top:12px">
+            <p style="font-size:13px; color:var(--text-muted); margin-bottom:6px">End-to-end Loss:</p>
+            <div class="equation-box" style="font-size:13px; padding:12px">
+              ℒ = ‖Î<sub>raw</sub> − I<sub>raw</sub>‖₁ + λ₃·‖φ(Î<sub>raw</sub>) − φ(I<sub>raw</sub>)‖²
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:8px">Joint optimization alleviates representation mismatches between DLAE and DLFM.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-row">
+        <div class="metric-card">
+          <div class="metric-value" style="font-size:24px">Adam</div>
+          <div class="metric-label">Optimizer</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" style="font-size:24px">1e-4</div>
+          <div class="metric-label">Learning Rate</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" style="font-size:24px">K=20</div>
+          <div class="metric-label">Flow Steps</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" style="font-size:24px">RTX 4090</div>
+          <div class="metric-label">GPU</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 9: Quantitative Results -->
+  <div class="slide" data-title="Quantitative Results">
+    <div class="slide-inner">
+      <div class="slide-badge badge-accent">Results</div>
+      <h2>Quantitative Comparison</h2>
+      <div class="section-divider"></div>
+
+      <div class="tabs" id="datasetTabs">
+        <button class="tab-btn active" onclick="switchTab('datasetTabs','ds-nikon')">FiveK-Nikon</button>
+        <button class="tab-btn" onclick="switchTab('datasetTabs','ds-canon')">FiveK-Canon</button>
+        <button class="tab-btn" onclick="switchTab('datasetTabs','ds-pascal')">PASCALRAW</button>
+      </div>
+
+      <div class="tab-content active" id="ds-nikon">
+        <div class="table-wrapper" style="margin-top:16px">
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Venue</th><th>PSNR<sub>raw</sub>↑</th><th>SSIM<sub>raw</sub>↑</th><th>PSNR<sub>rgb</sub>↑</th><th>SSIM<sub>rgb</sub>↑</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="method-name">UNet</td><td>MICCAI'15</td><td>25.65</td><td>0.8535</td><td>25.94</td><td>0.8583</td></tr>
+              <tr><td class="method-name">UPI</td><td>CVPR'19</td><td>25.55</td><td>0.8416</td><td>25.79</td><td>0.8479</td></tr>
+              <tr><td class="method-name">CycleISP</td><td>CVPR'20</td><td>26.41</td><td>0.8574</td><td>26.64</td><td>0.8610</td></tr>
+              <tr><td class="method-name">InvISP</td><td>CVPR'21</td><td>26.94</td><td>0.8268</td><td>27.34</td><td>0.8319</td></tr>
+              <tr><td class="method-name">CycleR2R</td><td>TPAMI'24</td><td>25.43</td><td>0.8272</td><td>25.52</td><td>0.8260</td></tr>
+              <tr><td class="method-name">ReRAW-R</td><td>CVPR'25</td><td>27.90</td><td>0.8447</td><td>28.29</td><td>0.8495</td></tr>
+              <tr><td class="method-name">ReRAW-S</td><td>CVPR'25</td><td class="second">28.04</td><td>0.8377</td><td class="second">28.28</td><td>0.8413</td></tr>
+              <tr><td class="method-name">DDPM</td><td>NeurIPS'20</td><td>25.82</td><td>0.8392</td><td>26.27</td><td>0.8435</td></tr>
+              <tr><td class="method-name">RAW-Diff</td><td>WACV'25</td><td>26.96</td><td class="second">0.8608</td><td>27.46</td><td class="second">0.8653</td></tr>
+              <tr style="background:rgba(99,102,241,0.08)"><td class="method-name ours">RAW-Flow (Ours)</td><td>-</td><td class="best">30.79</td><td class="best">0.8772</td><td class="best">31.28</td><td class="best">0.8816</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="metric-row" style="margin-top:16px">
+          <div class="metric-card">
+            <div class="metric-value">+2.75</div>
+            <div class="metric-label">PSNR<sub>raw</sub> gain over 2nd</div>
+            <div class="metric-delta">vs. ReRAW-S (28.04)</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value">+3.00</div>
+            <div class="metric-label">PSNR<sub>rgb</sub> gain over 2nd</div>
+            <div class="metric-delta">vs. ReRAW-R (28.29)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="ds-canon">
+        <div class="table-wrapper" style="margin-top:16px">
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Venue</th><th>PSNR<sub>raw</sub>↑</th><th>SSIM<sub>raw</sub>↑</th><th>PSNR<sub>rgb</sub>↑</th><th>SSIM<sub>rgb</sub>↑</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="method-name">UNet</td><td>MICCAI'15</td><td>29.20</td><td>0.9221</td><td>29.69</td><td>0.9277</td></tr>
+              <tr><td class="method-name">UPI</td><td>CVPR'19</td><td>27.24</td><td>0.8846</td><td>27.46</td><td>0.8892</td></tr>
+              <tr><td class="method-name">CycleISP</td><td>CVPR'20</td><td>29.96</td><td>0.9389</td><td>30.42</td><td>0.9426</td></tr>
+              <tr><td class="method-name">InvISP</td><td>CVPR'21</td><td>28.32</td><td>0.8648</td><td>28.74</td><td>0.8680</td></tr>
+              <tr><td class="method-name">CycleR2R</td><td>TPAMI'24</td><td>26.33</td><td>0.8579</td><td>26.55</td><td>0.8588</td></tr>
+              <tr><td class="method-name">ReRAW-R</td><td>CVPR'25</td><td>30.98</td><td>0.9230</td><td>31.34</td><td>0.9259</td></tr>
+              <tr><td class="method-name">ReRAW-S</td><td>CVPR'25</td><td class="second">31.76</td><td class="second">0.9328</td><td class="second">32.10</td><td class="second">0.9355</td></tr>
+              <tr><td class="method-name">DDPM</td><td>NeurIPS'20</td><td>28.70</td><td>0.8485</td><td>29.53</td><td>0.8681</td></tr>
+              <tr><td class="method-name">RAW-Diff</td><td>WACV'25</td><td>31.84</td><td>0.9571</td><td>32.41</td><td>0.9613</td></tr>
+              <tr style="background:rgba(99,102,241,0.08)"><td class="method-name ours">RAW-Flow (Ours)</td><td>-</td><td class="best">32.55</td><td class="best">0.9445</td><td class="best">33.30</td><td class="best">0.9508</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-content" id="ds-pascal">
+        <div class="table-wrapper" style="margin-top:16px">
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Venue</th><th>PSNR<sub>raw</sub>↑</th><th>SSIM<sub>raw</sub>↑</th><th>PSNR<sub>rgb</sub>↑</th><th>SSIM<sub>rgb</sub>↑</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="method-name">UNet</td><td>MICCAI'15</td><td>33.87</td><td>0.9645</td><td>34.43</td><td>0.9700</td></tr>
+              <tr><td class="method-name">UPI</td><td>CVPR'19</td><td>26.26</td><td>0.8828</td><td>26.50</td><td>0.8884</td></tr>
+              <tr><td class="method-name">CycleISP</td><td>CVPR'20</td><td>34.89</td><td>0.9735</td><td>35.59</td><td>0.9794</td></tr>
+              <tr><td class="method-name">InvISP</td><td>CVPR'21</td><td>28.47</td><td>0.8631</td><td>28.80</td><td>0.8602</td></tr>
+              <tr><td class="method-name">CycleR2R</td><td>TPAMI'24</td><td>26.19</td><td>0.8349</td><td>26.25</td><td>0.8311</td></tr>
+              <tr><td class="method-name">ReRAW-R</td><td>CVPR'25</td><td>35.96</td><td>0.9834</td><td>36.17</td><td>0.9837</td></tr>
+              <tr><td class="method-name">ReRAW-S</td><td>CVPR'25</td><td class="second">37.29</td><td class="second">0.9854</td><td class="second">37.47</td><td class="second">0.9857</td></tr>
+              <tr><td class="method-name">DDPM</td><td>NeurIPS'20</td><td>32.24</td><td>0.9574</td><td>32.87</td><td>0.9632</td></tr>
+              <tr><td class="method-name">RAW-Diff</td><td>WACV'25</td><td>29.54</td><td>0.9340</td><td>30.11</td><td>0.9395</td></tr>
+              <tr style="background:rgba(99,102,241,0.08)"><td class="method-name ours">RAW-Flow (Ours)</td><td>-</td><td class="best">37.62</td><td class="best">0.9831</td><td class="best">38.69</td><td class="best">0.9892</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 10: Visual Comparison Chart -->
+  <div class="slide" data-title="Performance Visualization">
+    <div class="slide-inner">
+      <div class="slide-badge badge-primary">Visualization</div>
+      <h2>PSNR<sub>raw</sub> Comparison Across Datasets</h2>
+      <div class="section-divider"></div>
+
+      <div class="tabs" id="chartTabs">
+        <button class="tab-btn active" onclick="switchTab('chartTabs','chart-nikon');animateBars()">FiveK-Nikon</button>
+        <button class="tab-btn" onclick="switchTab('chartTabs','chart-canon');animateBars()">FiveK-Canon</button>
+        <button class="tab-btn" onclick="switchTab('chartTabs','chart-pascal');animateBars()">PASCALRAW</button>
+      </div>
+
+      <div class="tab-content active" id="chart-nikon">
+        <div class="bar-chart" style="margin-top:16px" id="barChart-nikon">
+          <div class="bar-row"><div class="bar-label">RAW-Flow</div><div class="bar-track"><div class="bar-fill ours-bar" data-width="100" data-value="30.79">30.79</div></div></div>
+          <div class="bar-row"><div class="bar-label">ReRAW-S</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="91" data-value="28.04">28.04</div></div></div>
+          <div class="bar-row"><div class="bar-label">ReRAW-R</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="90.6" data-value="27.90">27.90</div></div></div>
+          <div class="bar-row"><div class="bar-label">RAW-Diff</div><div class="bar-track"><div class="bar-fill diff-bar" data-width="87.6" data-value="26.96">26.96</div></div></div>
+          <div class="bar-row"><div class="bar-label">InvISP</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="87.5" data-value="26.94">26.94</div></div></div>
+          <div class="bar-row"><div class="bar-label">CycleISP</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="85.8" data-value="26.41">26.41</div></div></div>
+          <div class="bar-row"><div class="bar-label">DDPM</div><div class="bar-track"><div class="bar-fill diff-bar" data-width="83.9" data-value="25.82">25.82</div></div></div>
+          <div class="bar-row"><div class="bar-label">UNet</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="83.3" data-value="25.65">25.65</div></div></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="chart-canon">
+        <div class="bar-chart" style="margin-top:16px" id="barChart-canon">
+          <div class="bar-row"><div class="bar-label">RAW-Flow</div><div class="bar-track"><div class="bar-fill ours-bar" data-width="100" data-value="32.55">32.55</div></div></div>
+          <div class="bar-row"><div class="bar-label">RAW-Diff</div><div class="bar-track"><div class="bar-fill diff-bar" data-width="97.8" data-value="31.84">31.84</div></div></div>
+          <div class="bar-row"><div class="bar-label">ReRAW-S</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="97.6" data-value="31.76">31.76</div></div></div>
+          <div class="bar-row"><div class="bar-label">ReRAW-R</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="95.2" data-value="30.98">30.98</div></div></div>
+          <div class="bar-row"><div class="bar-label">CycleISP</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="92.1" data-value="29.96">29.96</div></div></div>
+          <div class="bar-row"><div class="bar-label">UNet</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="89.7" data-value="29.20">29.20</div></div></div>
+          <div class="bar-row"><div class="bar-label">DDPM</div><div class="bar-track"><div class="bar-fill diff-bar" data-width="88.2" data-value="28.70">28.70</div></div></div>
+          <div class="bar-row"><div class="bar-label">InvISP</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="87.0" data-value="28.32">28.32</div></div></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="chart-pascal">
+        <div class="bar-chart" style="margin-top:16px" id="barChart-pascal">
+          <div class="bar-row"><div class="bar-label">RAW-Flow</div><div class="bar-track"><div class="bar-fill ours-bar" data-width="100" data-value="37.62">37.62</div></div></div>
+          <div class="bar-row"><div class="bar-label">ReRAW-S</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="99.1" data-value="37.29">37.29</div></div></div>
+          <div class="bar-row"><div class="bar-label">ReRAW-R</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="95.6" data-value="35.96">35.96</div></div></div>
+          <div class="bar-row"><div class="bar-label">CycleISP</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="92.7" data-value="34.89">34.89</div></div></div>
+          <div class="bar-row"><div class="bar-label">UNet</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="90.0" data-value="33.87">33.87</div></div></div>
+          <div class="bar-row"><div class="bar-label">DDPM</div><div class="bar-track"><div class="bar-fill diff-bar" data-width="85.7" data-value="32.24">32.24</div></div></div>
+          <div class="bar-row"><div class="bar-label">RAW-Diff</div><div class="bar-track"><div class="bar-fill diff-bar" data-width="78.6" data-value="29.54">29.54</div></div></div>
+          <div class="bar-row"><div class="bar-label">InvISP</div><div class="bar-track"><div class="bar-fill sota-bar" data-width="75.7" data-value="28.47">28.47</div></div></div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px; display:flex; gap:24px; justify-content:center; font-size:13px">
+        <div style="display:flex; align-items:center; gap:6px">
+          <div style="width:16px;height:10px;border-radius:3px;background:var(--gradient-1)"></div>
+          <span style="color:var(--text-secondary)">RAW-Flow (Ours)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px">
+          <div style="width:16px;height:10px;border-radius:3px;background:rgba(100,116,139,0.6)"></div>
+          <span style="color:var(--text-secondary)">Regression-based</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px">
+          <div style="width:16px;height:10px;border-radius:3px;background:rgba(239,68,68,0.4)"></div>
+          <span style="color:var(--text-secondary)">Diffusion-based</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 11: Ablation Studies -->
+  <div class="slide" data-title="Ablation Studies">
+    <div class="slide-inner">
+      <div class="slide-badge badge-info">Ablation</div>
+      <h2>Ablation Studies</h2>
+      <div class="section-divider"></div>
+
+      <div class="tabs" id="ablTabs">
+        <button class="tab-btn active" onclick="switchTab('ablTabs','abl-dlae')">DLAE Components</button>
+        <button class="tab-btn" onclick="switchTab('ablTabs','abl-dlfm')">Flow Matching Variants</button>
+        <button class="tab-btn" onclick="switchTab('ablTabs','abl-guide')">Context Guidance</button>
+      </div>
+
+      <div class="tab-content active" id="abl-dlae">
+        <h3 style="margin-top:16px">Effect of DLAE Components on FiveK-Nikon</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>z<sub>raw</sub></th><th>f<sub>rgb</sub> (injected)</th><th>ℒ<sub>fea</sub></th><th colspan="2">Autoencoder RAW</th><th colspan="2">Reconstructed RAW</th></tr>
+              <tr><th></th><th></th><th></th><th>PSNR↑</th><th>SSIM↑</th><th>PSNR↑</th><th>SSIM↑</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>✓</td><td></td><td></td><td>20.08</td><td>0.7808</td><td>29.19</td><td>0.8605</td></tr>
+              <tr><td>✓</td><td>✓</td><td></td><td>25.36</td><td>0.8579</td><td>28.48</td><td>0.8428</td></tr>
+              <tr style="background:rgba(99,102,241,0.08)"><td>✓</td><td>✓</td><td>✓</td><td class="best">32.94</td><td class="best">0.9895</td><td class="best">30.79</td><td class="best">0.8772</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="margin-top:16px; border-color:var(--success)">
+          <p style="font-size:14px"><strong>Finding:</strong> Both RGB feature injection and feature alignment loss are essential. The alignment constraint bridges the domain gap between RGB/RAW encoders while preserving domain-specific deep features, yielding <strong>+12.86 dB</strong> autoencoder PSNR improvement.</p>
+        </div>
+      </div>
+
+      <div class="tab-content" id="abl-dlfm">
+        <h3 style="margin-top:16px">Comparison of Generative Paradigms</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Variant</th><th colspan="2">FiveK-Nikon</th><th colspan="2">FiveK-Canon</th></tr>
+              <tr><th></th><th>PSNR↑</th><th>SSIM↑</th><th>PSNR↑</th><th>SSIM↑</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="method-name">Diffusion</td><td>28.30</td><td>0.8235</td><td>28.79</td><td>0.8638</td></tr>
+              <tr><td class="method-name">Stochastic FM</td><td>27.32</td><td>0.8696</td><td>22.74</td><td>0.6783</td></tr>
+              <tr style="background:rgba(99,102,241,0.08)"><td class="method-name ours">DLFM (Ours)</td><td class="best">30.79</td><td class="best">0.8772</td><td class="best">32.55</td><td class="best">0.9445</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="margin-top:16px; border-color:var(--accent)">
+          <p style="font-size:14px"><strong>Finding:</strong> Stochastic FM collapses on Canon (+9.81 dB gap!) because Gaussian noise initialization introduces severe uncertainty for a fundamentally deterministic mapping task. DLFM avoids this by starting from actual RGB latents.</p>
+        </div>
+      </div>
+
+      <div class="tab-content" id="abl-guide">
+        <h3 style="margin-top:16px">Effect of Guidance Strategy</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Guidance</th><th colspan="2">FiveK-Nikon</th><th colspan="2">FiveK-Canon</th></tr>
+              <tr><th></th><th>PSNR↑</th><th>SSIM↑</th><th>PSNR↑</th><th>SSIM↑</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="method-name">Single-scale Context</td><td>29.04</td><td>0.8464</td><td>28.43</td><td>0.8587</td></tr>
+              <tr><td class="method-name">RGB Latent</td><td>28.50</td><td>0.8712</td><td>28.37</td><td>0.9037</td></tr>
+              <tr style="background:rgba(99,102,241,0.08)"><td class="method-name ours">Cross-scale Context</td><td class="best">30.79</td><td class="best">0.8772</td><td class="best">32.55</td><td class="best">0.9445</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="margin-top:16px; border-color:var(--primary)">
+          <p style="font-size:14px"><strong>Finding:</strong> RGB latent alone causes global luminance shifts. Single-scale context helps but misses fine details. Multi-scale guidance captures both global semantics and local textures for optimal results (+4.12 dB on Canon vs. single-scale).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 12: Conclusion & Takeaways -->
+  <div class="slide" data-title="Conclusion">
+    <div class="slide-inner">
+      <div class="slide-badge badge-success">Conclusion</div>
+      <h2>Summary & Key Takeaways</h2>
+      <div class="section-divider"></div>
+
+      <div class="card-grid card-grid-3" style="margin-bottom:24px">
+        <div class="card" style="border-top:3px solid var(--primary); text-align:center">
+          <div style="font-size:42px; margin-bottom:8px">🔄</div>
+          <h3>New Paradigm</h3>
+          <p>First to formulate RGB-to-RAW as <strong>deterministic latent transport</strong> via flow matching</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--accent); text-align:center">
+          <div style="font-size:42px; margin-bottom:8px">🏗️</div>
+          <h3>Novel Architecture</h3>
+          <p>DLAE with feature alignment + DLFM with cross-scale context guidance</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--success); text-align:center">
+          <div style="font-size:42px; margin-bottom:8px">🏆</div>
+          <h3>SOTA Results</h3>
+          <p>Best performance on all 3 benchmarks, surpassing both regression & diffusion methods</p>
+        </div>
+      </div>
+
+      <h3>Why It Works</h3>
+      <ul class="highlight-list">
+        <li><strong>Deterministic > Stochastic:</strong> RGB-to-RAW is a one-to-one mapping under fixed camera/scene — noise-based generation adds unnecessary uncertainty</li>
+        <li><strong>Latent space is key:</strong> Operating in latent space enables more compact and meaningful representations than pixel-space methods</li>
+        <li><strong>Dual-domain synergy:</strong> Leveraging the stability of RGB learning to bootstrap RAW encoder training is a clever and effective strategy</li>
+        <li><strong>Multi-scale matters:</strong> Both global context and local details are critical for faithful RAW reconstruction</li>
+      </ul>
+
+      <div class="card" style="margin-top:24px; border-color:var(--primary); text-align:center">
+        <p style="font-size:16px; color:var(--text-primary)">
+          <strong>AAAI 2026 Oral</strong> &nbsp;|&nbsp; arXiv: 2601.20364 &nbsp;|&nbsp; Code: github.com/liuzhen03/RAW-Flow
+        </p>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:8px">
+          Zhen Liu, Diedong Feng, Hai Jiang, Liaoyuan Zeng, Hao Wang, Chaoyu Feng, Lei Lei, Bing Zeng, Shuaicheng Liu
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Keyboard Hint -->
+<div class="keyboard-hint">
+  <kbd>←</kbd> <kbd>→</kbd> <span class="hint-text">Navigate</span>
+  <kbd>M</kbd> <span class="hint-text">Menu</span>
+</div>
+
+<script>
+  // Slide management
+  const slides = document.querySelectorAll('.slide');
+  let currentSlide = 0;
+  const totalSlides = slides.length;
+
+  function updateSlide(index, direction = 'next') {
+    if (index < 0 || index >= totalSlides) return;
+    slides[currentSlide].classList.remove('active');
+    currentSlide = index;
+    slides[currentSlide].classList.add('active');
+    updateUI();
+    animateBars();
+    animateFadeIns();
+  }
+
+  function nextSlide() { updateSlide(currentSlide + 1, 'next'); }
+  function prevSlide() { updateSlide(currentSlide - 1, 'prev'); }
+
+  function updateUI() {
+    // Counter
+    document.getElementById('slideCounter').textContent =
+      String(currentSlide + 1).padStart(2, '0') + ' / ' + String(totalSlides).padStart(2, '0');
+    // Progress
+    document.getElementById('progressFill').style.width =
+      ((currentSlide + 1) / totalSlides * 100) + '%';
+    // Nav list
+    document.querySelectorAll('.nav-list li').forEach((li, i) => {
+      li.classList.toggle('active', i === currentSlide);
+    });
+  }
+
+  // Build nav list
+  const navList = document.getElementById('navList');
+  slides.forEach((slide, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="nav-num">${String(i + 1).padStart(2, '0')}</span> ${slide.dataset.title}`;
+    li.onclick = () => { updateSlide(i); toggleNav(); };
+    if (i === 0) li.classList.add('active');
+    navList.appendChild(li);
+  });
+
+  // Navigation sidebar
+  function toggleNav() {
+    const nav = document.getElementById('navSidebar');
+    const overlay = document.getElementById('navOverlay');
+    nav.classList.toggle('open');
+    overlay.classList.toggle('show');
+  }
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+    else if (e.key === 'm' || e.key === 'M') { toggleNav(); }
+    else if (e.key === 'Escape') {
+      const nav = document.getElementById('navSidebar');
+      if (nav.classList.contains('open')) toggleNav();
+    }
+  });
+
+  // Touch/swipe support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) { diff > 0 ? nextSlide() : prevSlide(); }
+  });
+
+  // Tab switching
+  function switchTab(tabGroupId, contentId) {
+    const group = document.getElementById(tabGroupId);
+    group.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Find all tab-content siblings
+    let el = group.nextElementSibling;
+    while (el && el.classList.contains('tab-content')) {
+      el.classList.remove('active');
+      if (el.id === contentId) el.classList.add('active');
+      el = el.nextElementSibling;
+    }
+  }
+
+  // Architecture detail
+  function showDetail(id) {
+    const details = ['enc', 'rgb-enc', 'dlfm', 'raw-dec', 'out'];
+    details.forEach(d => {
+      const el = document.getElementById('detail-' + d);
+      if (el) el.style.display = (d === id && el.style.display === 'none') ? 'block' : 'none';
+    });
+  }
+
+  // Animate bar charts
+  function animateBars() {
+    setTimeout(() => {
+      const activeSlide = slides[currentSlide];
+      const bars = activeSlide.querySelectorAll('.bar-fill');
+      bars.forEach((bar, i) => {
+        setTimeout(() => {
+          bar.style.width = bar.dataset.width + '%';
+        }, i * 80);
+      });
+    }, 200);
+  }
+
+  // Animate fade-ins
+  function animateFadeIns() {
+    const activeSlide = slides[currentSlide];
+    activeSlide.querySelectorAll('.fade-in').forEach((el, i) => {
+      setTimeout(() => el.classList.add('visible'), i * 100 + 100);
+    });
+  }
+
+  // Initial
+  updateUI();
+  animateBars();
+</script>
+</body>
+</html>
